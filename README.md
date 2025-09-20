@@ -1,4 +1,4 @@
----
+
 
 # Tesla in Washington: Market Share, Sales, and EV Landscape
 
@@ -6,7 +6,7 @@
 
 ### [**View the Live Dashboard on RPubs**](https://rpubs.com/surajshrestha7494/1346455)
 
----
+
 
 ## Project Overview
 
