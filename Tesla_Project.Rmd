@@ -1,0 +1,336 @@
+---
+title: "<center>Tesla in Washington: Market Share, Sales, and EV Landscape</center>"
+author: "Suraj Shrestha"
+output: 
+  flexdashboard::flex_dashboard:
+    vertical_layout: scroll
+---
+
+```{r}
+# -----------------------------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------------------------
+# This section loads libraries, cleans data, and prepares datasets
+# for answering executive-level business questions about Tesla's
+# EV market presence in Washington.
+# -----------------------------------------------------------------------------------------------
+
+# Core libraries
+library(dplyr)        # Data wrangling
+library(tidyr)        # Data cleaning
+library(tidyverse)    # General-purpose toolkit (includes ggplot2/dplyr)
+library(ggplot2)      # Visualization
+library(scales)       # Formatting numbers, currency, percentages
+library(readr)        # Reading CSV data
+library(stringr)      # Wrapping long labels for clean plots
+
+# -----------------------------------------------------------------------------------------------
+# Load & Clean Data
+# -----------------------------------------------------------------------------------------------
+# Dataset: Electric Vehicle Population in Washington State
+# Source: https://catalog.data.gov/dataset/electric-vehicle-population-data
+# Period: 2008 - March 2025
+# -----------------------------------------------------------------------------------------------
+
+df <- read_csv("~/Desktop/R Studio/Electric_Vehicle_Population_Data.csv")
+
+clean_df <- df %>%
+  rename_all(~ gsub("\\.", "_", .)) %>%                     # Remove dots in column names
+  mutate(
+    `Base MSRP` == as.numeric(`Base MSRP`),                 # Ensure MSRP is numeric
+  Tesla = ifelse(Make == "TESLA", "TESLA", "OTHER")
+  )
+
+# -----------------------------------------------------------------------------------------------
+# 1. Tesla Market Share
+# # -----------------------------------------------------------------------------------------------
+# Business question: "What percentage of EVs in Washington are Teslas?"
+# -----------------------------------------------------------------------------------------------
+
+total_vehicles <- nrow(clean_df)
+tesla_vehicles <- clean_df %>% filter(Tesla == "TESLA") %>% nrow()
+tesla_market_share <- round(tesla_vehicles/total_vehicles * 100, 1)
+
+# -----------------------------------------------------------------------------------------------
+# 2. Tesla Models Sold
+# -----------------------------------------------------------------------------------------------
+# Business question: "Which Tesla models sell the most, and
+#                     What is the estimated revenue from these sales?"
+# -----------------------------------------------------------------------------------------------
+
+make_model_sold <- clean_df %>%
+  filter(Tesla == "TESLA") %>%
+  group_by(Make, Model) %>%
+  summarize(count_sold = n(), .groups = "drop") %>%
+  arrange(desc(count_sold))
+
+# MSRP data
+msrp_by_year <- clean_df %>%
+  filter(`Base MSRP` > 0) %>%
+  filter(Tesla == "TESLA") %>%
+  group_by(`Model Year`, Make, Model) %>%
+  summarize(`Min Base MSRP` = min(`Base MSRP`)) %>%
+  arrange(`Model Year`, Make, Model)
+
+# MSRP values from dataset are incomplete; supplement with online data
+df_tesla_prices <- read_csv("~/Desktop/R Studio/Tesla_Current_Base_Prices.csv")
+
+df_tesla_prices <- df_tesla_prices %>%
+  mutate(
+    Model = toupper(Model))
+
+# Merge counts with MSRP to estimate revenue
+top_tesla_model_priced <- make_model_sold %>%
+  left_join(df_tesla_prices, by = "Model") %>%
+  mutate(
+    Estimate_revenue = as.numeric(count_sold) * as.numeric(Base_Price_USD)
+  )
+
+# Final estimates for lifetime sales
+top_tesla_model_priced <- top_tesla_model_priced %>%
+  filter(!is.na(Estimate_revenue)) %>%
+  group_by(Model) %>%
+  slice_min (Base_Price_USD) %>%
+  ungroup()
+
+# Add In
+# Tesla Sales Trends by Year
+# Business question: "How are Tesla sales trending over time?"
+
+tesla_sold_by_year <- clean_df %>%
+  filter(Tesla == "TESLA") %>%
+  group_by(`Model Year`) %>%
+  summarise(Count = n()) %>%
+  arrange(`Model Year`)
+
+# -----------------------------------------------------------------------------------------------
+# 3. Tesla vs Competitors (Range & MSRP)
+# -----------------------------------------------------------------------------------------------
+# Business question: "How does Tesla compare to competitors in range & price?"
+# -----------------------------------------------------------------------------------------------
+
+
+# AVG Range & MSRP
+avg_range_for_evs <- clean_df %>%
+  filter(`Electric Vehicle Type` == "Battery Electric Vehicle (BEV)",
+         `Electric Range` != 0,
+          `Base MSRP` != 0) %>%
+  group_by(Tesla) %>%
+  summarise(AVG_Range = mean(`Electric Range`),
+            AVG_MSRP = mean(`Base MSRP`))
+
+# Median Range & MSRP
+median_range_for_evs <- clean_df %>%
+  filter(`Electric Vehicle Type` == "Battery Electric Vehicle (BEV)",
+         `Electric Range` != 0,
+         `Base MSRP` != 0) %>%
+  group_by(Tesla) %>%
+  summarise(median_range = median(`Electric Range`),
+            median_msrp = median(`Base MSRP`))
+
+# MSRP is not fully populated and may skew results
+
+# -----------------------------------------------------------------------------------------------
+# 4. PHEV vs BEV Trends
+# -----------------------------------------------------------------------------------------------
+# Business question: "What are the adoption trends of BEVs vs PHEVs?"
+# -----------------------------------------------------------------------------------------------
+
+phev_vs_bev <- clean_df %>%
+  group_by(`Model Year`, `Electric Vehicle Type`) %>%
+  summarise(Count = n(), .groups = "drop")
+
+
+# -----------------------------------------------------------------------------------------------
+# 5. Top Electric Utilities for Tesla in Washington
+# -----------------------------------------------------------------------------------------------
+# Business question: "Which utilities serve the most Tesla owners?"
+# -----------------------------------------------------------------------------------------------
+
+utility_count_for_tesla <- clean_df %>%
+  filter(Tesla == "TESLA") %>%
+  group_by(`Electric Utility`) %>%
+  summarise(Count = n(), .groups = "drop") %>%
+  arrange(desc(Count)) %>%
+  head(5)
+```
+
+## Notes
+- State of Washington's data for electric vehicles (2008-2025)
+- Data Source: https://catalog.data.gov/dataset/electric-vehicle-population-data
+- 2025 data includes only January–March.  
+- MSRP data was incomplete, so it was supplemented from online sources.
+
+
+### **Case Scenario**
+
+**Tesla Executive Briefing**
+
+**Task:** Using the provided dataset, need to answer questions such as:
+
+1. What percentage of EVs in Washington are Teslas?
+
+2. Top Tesla Models Selling in the area
+• How much are we making from these models?
+
+3. Tesla vs Competitors - Range and MSRP
+• AVG and Median
+
+4. PHEV vs BEV Trends
+
+5. Top Electric Utilities in Washington for Tesla
+
+**Deliverable:** Doesn’t care, just wants to see numbers and maybe some graphs.
+
+### Tesla accounts for a significant share of the EV market in Washington, with approximately **~`r tesla_market_share`%** of all EVs registered in the state being Teslas. This highlights Tesla’s strong brand presence and dominance relative to other EV makers.
+```{r}
+
+```
+
+```{r}
+market_df <- data.frame(
+  Group = c("TESLA", "OTHER"),
+  Market_Share = c(tesla_market_share, 100 - tesla_market_share)
+)
+
+market_df <- market_df %>%
+  mutate(
+    Label = paste0(Market_Share, "%"),
+    ypos = cumsum(Market_Share) - 0.5 * Market_Share
+  )
+
+ggplot(market_df, aes(x = "", y = Market_Share, fill = Group)) +
+  geom_col(width = 1) +
+  coord_polar("y") +
+  geom_text(aes(y = ypos, label = Label, fontface = "bold")) +
+  labs(title = "Tesla Market Share in Washington (%)") +
+  theme_void() +
+  theme(
+    legend.title = element_blank(),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5)
+  )
+```
+
+### The **Model 3** leads sales, followed by the **Model Y**. These two models dominate Tesla’s footprint in Washington, suggesting customer preference for affordable, mass-market options rather than premium models
+```{r}
+ggplot(make_model_sold, aes(x = reorder(Model, count_sold), y = count_sold)) +
+  geom_col(fill = "#1F77B4") +
+  coord_flip() +
+  labs(title = "Tesla Models Sold - All Time", y = "Units Sold", x = "Model") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.text.y = element_text(size = 10)
+  )
+```
+
+### Despite the Model 3 leading in unit sales, the **Model Y and Model S contribute disproportionately high revenue** due to their higher price points. This underscores Tesla’s dual strategy of volume (Model 3) and margin (Model S/Y)
+
+```{r}
+ggplot(top_tesla_model_priced, aes(x = reorder(Model, Estimate_revenue), y = Estimate_revenue)) +
+  geom_col(fill = "#1F77B4") +
+  coord_flip() +
+  labs(title = "Estimated Revenue Per Model", y = "Revenue (USD)", x = "Model") +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.text.y = element_text(size = 10)
+  )
+```
+
+### (**Data: Until March 2025**) Tesla sales have grown steadily year-over-year, with notable spikes post-2018 when Model 3 availability ramped up. However, there is a noticeable dip in 2024, which may reflect either market dynamics or incomplete registration data. Overall, this reflects broader EV adoption trends.
+
+```{r}
+ggplot(tesla_sold_by_year, aes(x = `Model Year`, y = Count)) +
+  geom_line(color = "#1F77B4", size = 1.2) +
+  geom_point(color = "red", size = 3) +
+  labs(title = "Tesla Vehicles Sold by Year", x = "Year", y = "Units Sold") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5))
+```
+
+### Tesla vehicles consistently deliver **higher average driving ranges** compared to other BEVs, strengthening Tesla’s competitive edge in technology and consumer trust.
+
+```{r}
+# Range
+ggplot(avg_range_for_evs, aes(x = Tesla, y = AVG_Range, fill = Tesla)) +
+  geom_col() + 
+  geom_text(aes(label = round(AVG_Range, 1)), 
+            vjust = -0.3, size = 4, fontface = "bold") +
+  labs(title = "Average Electric Range (BEV)", x = "", y = "AVG Range (in Miles)") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5))
+```
+
+### Tesla’s average MSRP is higher than the industry average. However, the strong sales performance indicates consumers are willing to pay extra for perceived value. (**MSRP is not fully populated and may skew results**)
+
+```{r}
+# MSRP
+ggplot(avg_range_for_evs, aes(x = Tesla, y = AVG_MSRP, fill = Tesla)) +
+  geom_col() +
+  labs(title = "Average MSRP (BEV)", x = "", y = "Price (USD)") +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5))
+```
+
+### The Washington market has shifted significantly toward **BEVs over PHEVs** in recent years. Tesla has directly benefited, as all its offerings are BEVs, aligning with broader electrification trends
+
+```{r}
+ggplot(phev_vs_bev, aes(x = `Model Year`, y = Count, color = `Electric Vehicle Type`)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(title = "PHEV vs BEV Trends Over Time", x = "Year", y = "Vehicle Count") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    legend.position = "top",
+    legend.justification = "center",
+    legend.title = element_blank()
+  )
+```
+
+### The majority of Tesla owners are concentrated under a few major utilities (e.g., Puget Sound Energy, City of Seattle). This highlights potential for targeted partnerships with top utilities to expand charging infrastructure.
+
+```{r}
+utility_count_for_tesla <- utility_count_for_tesla %>%
+  mutate(`Electric Utility` = str_wrap(`Electric Utility`, width = 25)) 
+
+ggplot(utility_count_for_tesla, aes(x = reorder(`Electric Utility`, Count), y = Count)) +
+  geom_col(fill = "#1F77B4") +
+  coord_flip() +
+  labs(title = "Top Electric Utilities for Tesla in Washington", x = "Utility", y = "Count") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.text.y = element_text(size = 7)  # smaller labels
+  )
+```
+
+### Findings & Recommendations
+
+**Findings**
+
+- Tesla dominates Washington’s EV market with **~`r tesla_market_share`%** share.  
+
+- **Model 3 and Model Y lead sales**, but Model S contributes high revenue.  
+
+- **Tesla vehicles outperform competitors** in range, solidifying their edge. 
+
+- The **shift toward BEVs** favors Tesla’s offerings.  
+
+- Utility ownership is concentrated, creating partnership opportunities.  
+
+
+**Recommendations**
+
+- **Strengthen utility partnerships:** Work with Puget Sound Energy and City of Seattle.  
+
+- **Expand Model Y availability** to capture both volume and high revenue. 
+
+- **Leverage range advantage** in marketing campaigns.  
+
+- **Monitor BEV policy incentives** in Washington.  
+
+- **Explore affordability strategies** to broaden adoption.  
